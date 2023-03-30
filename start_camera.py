@@ -1,8 +1,14 @@
+import base64
+import json
 import sys
 
 import requests
 
 from Speed.updated_speed import *
+
+server_address = "http://10.10.10.49:3001"
+image_server = f"{server_address}/img"
+notify_server = f"{server_address}/notify"
 
 
 def main():
@@ -18,13 +24,25 @@ def main():
 
 
 def send_frame(frame):
-    pass
+    retval, buffer = cv2.imencode('.jpg', frame)
+    encoded_data = base64.b64encode(buffer).decode('utf-8')
+
+    # Create a JSON payload with the base64-encoded data
+    payload = {
+        'data': encoded_data
+    }
+
+    headers = {'Content-Type': 'application/json'}
+
+
+    response = requests.post(image_server, data=json.dumps(payload), headers=headers)
+    print(response)
 
 
 def notify_server(danger, alert=1):
     try:
         params = {'danger': danger, 'alert': alert}
-        response = requests.post('http://localhost:3001/notify', params=params)
+        response = requests.post(notify_server, params=params)
         print(response)
     except Exception as e:
         pass
