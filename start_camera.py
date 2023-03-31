@@ -1,26 +1,31 @@
 import base64
+import datetime
 import json
+import os
 import sys
-
+import argparse
 import requests
 
 from Speed.updated_speed import *
 
-server_address = "http://10.10.10.49:3001"
+parser = argparse.ArgumentParser()
+parser.add_argument("-s", "--server-hostname", default=os.environ.get("SERVER_URL", "localhost:3001"),
+                    help="The name of the server, INCLUDING port (for example 127.0.0.1:1337")
+parser.add_argument("--gui", action="store_true")
+args = parser.parse_args()
+
+server_address = f"http://{args.server_hostname}"
 image_server = f"{server_address}/img"
 notify_server = f"{server_address}/notify"
 
 
-def main():
-    gui = False
-    if len(sys.argv) >= 2:
-        gui = sys.argv[1] == 'gui'
+def main(gui):
     for (distance, speed, frame) in get_incoming_danger(gui):
         # print(f"distance: {distance} , speed: {speed}")
         if should_alert(distance, speed):
-            alert(distance, speed, frame)
+            alert(distance=distance, speed=speed, frame=frame)
         else:
-            relax(calculate_danger(distance, speed))
+            relax(danger=calculate_danger(distance, speed))
 
 
 def send_frame(frame):
@@ -34,12 +39,11 @@ def send_frame(frame):
 
     headers = {'Content-Type': 'application/json'}
 
-
     response = requests.post(image_server, data=json.dumps(payload), headers=headers)
     print(response)
 
 
-def notify_server(danger, alert=1):
+def notify_api(danger, alert=1):
     try:
         params = {'danger': danger, 'alert': alert}
         response = requests.post(notify_server, params=params)
@@ -61,13 +65,19 @@ def relax(danger):
     print("relaxing")
     relax_counter += 1
     if relax_counter >= 10:
-        notify_server(danger=danger, alert=0)
+        notify_api(danger=danger, alert=0)
         relax_counter = 0
 
 
+last_sent_frame = datetime.datetime.now()
+
+
 def alert(distance, speed, frame):
-    send_frame(frame)
-    notify_server(danger=calculate_danger(distance, speed))
+    global last_sent_frame
+    if datetime.datetime.now() - last_sent_frame > datetime.timedelta(seconds=0.5):
+        last_sent_frame = datetime.datetime.now()
+        send_frame(frame)
+    notify_api(danger=calculate_danger(distance, speed))
     print(f"ALERT: distance: {distance} , speed: {speed}")
 
 
@@ -76,4 +86,4 @@ def should_alert(distance, speed):
 
 
 if __name__ == '__main__':
-    main()
+    main(gui=args.gui)
