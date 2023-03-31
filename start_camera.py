@@ -1,9 +1,9 @@
+import argparse
 import base64
 import datetime
 import json
 import os
-import sys
-import argparse
+
 import requests
 
 from Speed.updated_speed import *
@@ -18,6 +18,8 @@ server_address = f"http://{args.server_hostname}"
 image_server = f"{server_address}/img"
 notify_server = f"{server_address}/notify"
 
+last_alert = datetime.datetime.now()
+
 
 def main(gui):
     for (distance, speed, frame) in get_incoming_danger(gui):
@@ -26,6 +28,13 @@ def main(gui):
             alert(distance=distance, speed=speed, frame=frame)
         else:
             relax(danger=calculate_danger(distance, speed))
+
+
+def reset_alert():
+    while True:
+        if last_alert + datetime.timedelta(seconds=5) > datetime.datetime.now():
+            notify_api(danger=0, alert=0)
+        time.sleep(0.5)
 
 
 def send_frame(frame):
@@ -74,10 +83,12 @@ last_sent_frame = datetime.datetime.now()
 
 def alert(distance, speed, frame):
     global last_sent_frame
+    global last_alert
     if datetime.datetime.now() - last_sent_frame > datetime.timedelta(seconds=0.5):
         last_sent_frame = datetime.datetime.now()
         send_frame(frame)
     notify_api(danger=calculate_danger(distance, speed))
+    last_alert = datetime.datetime.now()
     print(f"ALERT: distance: {distance} , speed: {speed}")
 
 
